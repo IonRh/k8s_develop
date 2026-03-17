@@ -64,9 +64,12 @@ jobs:
       - name: Build k8s image tar
         run: |
           set -euo pipefail
-          mapfile -t K8S_IMAGES < k8s-images.txt
-          sealos pull "${K8S_IMAGES[@]}"
-          sealos save -o k8s-images.tar "${K8S_IMAGES[@]}"
+          docker run --rm --privileged -v "$PWD:/work" -w /work ubuntu:22.04 bash -lc '
+            set -euo pipefail
+            mapfile -t K8S_IMAGES < k8s-images.txt
+            /work/sealos pull "${K8S_IMAGES[@]}"
+            /work/sealos save -o k8s-images.tar "${K8S_IMAGES[@]}"
+          '
 
       # ======================
       # 拉取 & 打包 Rancher 镜像
@@ -75,9 +78,12 @@ jobs:
         run: |
           set -euo pipefail
           grep -vE '^[[:space:]]*(#|$)' rancher-images.txt > rancher-images.clean.txt
-          mapfile -t RANCHER_IMAGES < rancher-images.clean.txt
-          sealos pull "${RANCHER_IMAGES[@]}"
-          sealos save -o rancher-images.tar "${RANCHER_IMAGES[@]}"
+          docker run --rm --privileged -v "$PWD:/work" -w /work ubuntu:22.04 bash -lc '
+            set -euo pipefail
+            mapfile -t RANCHER_IMAGES < rancher-images.clean.txt
+            /work/sealos pull "${RANCHER_IMAGES[@]}"
+            /work/sealos save -o rancher-images.tar "${RANCHER_IMAGES[@]}"
+          '
 
       # ======================
       # RPM 构建
