@@ -45,10 +45,10 @@ jobs:
       - name: Prepare k8s images
         run: |
           cat <<EOF > k8s-images.txt
-          registry.cn-shanghai.aliyuncs.com/labring/kubernetes:${K8S_VERSION}
-          registry.cn-shanghai.aliyuncs.com/labring/calico:${CALICO_VERSION}
-          registry.cn-shanghai.aliyuncs.com/labring/ingress-nginx:${INGRESS_VERSION}
-          registry.cn-shanghai.aliyuncs.com/labring/longhorn:${LONGHORN_VERSION}
+          docker.io/labring/kubernetes:${K8S_VERSION}
+          docker.io/labring/calico:${CALICO_VERSION}
+          docker.io/labring/ingress-nginx:${INGRESS_VERSION}
+          docker.io/labring/longhorn:${LONGHORN_VERSION}
           EOF
 
       # ======================
@@ -96,7 +96,12 @@ jobs:
       - name: Build rancher image tar
         run: |
           set -euo pipefail
-          grep -vE '^[[:space:]]*(#|$)' rancher-images.txt > rancher-images.clean.txt
+          grep -vE '^[[:space:]]*(#|$)' rancher-images.txt | while read -r img; do
+            case "$img" in
+              *.*/*|*:*/*|localhost/*) echo "$img" ;;
+              *) echo "docker.io/$img" ;;
+            esac
+          done > rancher-images.clean.txt
           docker run --rm --privileged \
             -e TARGET_ARCH="${{ matrix.arch }}" \
             -v "$PWD:/work" -w /work ubuntu:22.04 bash -lc '
