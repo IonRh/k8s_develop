@@ -33,7 +33,14 @@ jobs:
       - name: Install sealos
         run: |
           set -euo pipefail
-          SEALOS_ARCH="${{ matrix.arch }}"
+          # GitHub Actions runners are typically amd64; use runner arch so we can execute sealos locally.
+          SEALOS_ARCH="$(uname -m)"
+          case "$SEALOS_ARCH" in
+            x86_64) SEALOS_ARCH=amd64 ;;
+            aarch64|arm64) SEALOS_ARCH=arm64 ;;
+            *) echo "Unsupported runner arch: $SEALOS_ARCH" >&2 ; exit 1 ;;
+          esac
+
           SEALOS_PKG="sealos_${SEALOS_VERSION#v}_linux_${SEALOS_ARCH}.tar.gz"
           curl -fL --retry 3 --retry-delay 2 -o "$SEALOS_PKG" \
             "https://github.com/labring/sealos/releases/download/${SEALOS_VERSION}/${SEALOS_PKG}"
