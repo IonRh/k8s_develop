@@ -48,7 +48,7 @@ jobs:
           sealos version
 
       # ======================
-      # 构建 K8s 镜像列表
+      # 构建K8s镜像列表
       # ======================
       - name: Prepare k8s images
         run: |
