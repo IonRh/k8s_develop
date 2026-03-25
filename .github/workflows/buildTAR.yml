@@ -11,122 +11,118 @@ on:
 
 jobs:
   build:
-    name: ${{ matrix.distro }} ${{ matrix.arch }}
-    runs-on: ${{ matrix.runner }}
-    container: ${{ matrix.container }}
-
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - distro: "Ubuntu 24.04 (apt)"
-            arch: "amd64"
-            runner: "ubuntu-24.04"
-            container: null
-            pkg: "apt"
+        arch: [amd64, arm64]
+        pkg: [deb, rpm]
 
-          - distro: "Ubuntu 24.04 (apt)"
-            arch: "arm64"
-            runner: "ubuntu-24.04-arm"
-            container: null
-            pkg: "apt"
-
-          - distro: "Rocky Linux 9 (yum)"
-            arch: "amd64"
-            runner: "ubuntu-24.04"
-            container: "rockylinux:9"
-            pkg: "dnf"
-
-          - distro: "Rocky Linux 9 (yum)"
-            arch: "arm64"
-            runner: "ubuntu-24.04-arm"
-            container: "rockylinux:9"
-            pkg: "dnf"
+    env:
+      SEALOS_VERSION: 5.1.1
+      K8S_VERSION: v1.30.14
+      CALICO_VERSION: v3.27.4
+      INGRESS_VERSION: v1.11.3
+      LONGHORN_VERSION: v1.6.4
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Prepare release directories
-        run: |
-          mkdir -p release/bin release/images release/packages/deb release/packages/rpm release/scripts
+      - name: Prepare directories
+        run: mkdir -p release/bin release/images release/packages release/scripts
 
-      # ====================== 1. 准备 sealos ======================
-      - name: Prepare sealos
+      # ====================== 1. 安装 sealos ======================
+      - name: Install sealos
         run: |
-          SEALOS_VERSION=5.1.1
-          curl -sL https://github.com/labring/sealos/releases/download/v${SEALOS_VERSION}/sealos_${SEALOS_VERSION}_linux_${{ matrix.arch }}.tar.gz \
-            | tar -xzf - sealos
+          SEALOS_ARCH=${{ matrix.arch }}
+          curl -fL --retry 3 -o sealos.tar.gz \
+            https://github.com/labring/sealos/releases/download/v${SEALOS_VERSION}/sealos_${SEALOS_VERSION}_linux_${SEALOS_ARCH}.tar.gz
+          
+          tar -xzf sealos.tar.gz
           chmod +x sealos
-          cp sealos release/bin/sealos
-          echo "Sealos ${SEALOS_VERSION} (${{ matrix.arch }}) prepared"
+          sudo install -m 0755 sealos /usr/local/bin/sealos
+          cp sealos release/bin/sealos          # 打包进离线包
+          sealos version
 
-      # ====================== 2. 拉取镜像（关键修复） ======================
-      - name: Pull and save k8s images
+      # ====================== 2. 准备镜像列表 ======================
+      - name: Prepare k8s images list
         run: |
-          cat > images.txt <<EOF
-          registry.cn-shanghai.aliyuncs.com/labring/kubernetes:v1.30.14
-          registry.cn-shanghai.aliyuncs.com/labring/calico:v3.27.4
-          registry.cn-shanghai.aliyuncs.com/labring/ingress-nginx:v1.11.3
-          registry.cn-shanghai.aliyuncs.com/labring/longhorn:v1.6.4
+          cat <<EOF > k8s-images.txt
+          registry.cn-shanghai.aliyuncs.com/labring/kubernetes:${K8S_VERSION}
+          registry.cn-shanghai.aliyuncs.com/labring/calico:${CALICO_VERSION}
+          registry.cn-shanghai.aliyuncs.com/labring/ingress-nginx:${INGRESS_VERSION}
+          registry.cn-shanghai.aliyuncs.com/labring/longhorn:${LONGHORN_VERSION}
           EOF
 
-          docker run --rm \
+      # ====================== 3. 拉取并打包镜像（核心修复） ======================
+      - name: Build k8s image tar
+        run: |
+          docker run --rm --privileged \
             -v $(pwd):/work \
             -v /var/run/docker.sock:/var/run/docker.sock \
             ubuntu:22.04 bash -c '
               set -e
-              apt-get update -qq && apt-get install -y ca-certificates curl
-
-              # 修复 apt 权限问题（虽然这里以 root 运行，但保险起见）
-              mkdir -p /var/lib/apt/lists/partial
-              chmod 755 /var/lib/apt/lists/partial
+              apt-get update -qq
+              apt-get install -y ca-certificates curl uidmap fuse-overlayfs
 
               cd /work
               cp release/bin/sealos /usr/local/bin/sealos
               chmod +x /usr/local/bin/sealos
 
-              # 创建 sealos 日志目录并赋予权限
+              # 解决 sealos 日志目录权限问题
               mkdir -p /.sealos/logs
               chmod 777 /.sealos
 
-              /usr/local/bin/sealos pull --platform linux/${{ matrix.arch }} $(cat images.txt)
-              /usr/local/bin/sealos save -o release/images/k8s-images.tar $(cat images.txt)
+              echo "=== Pulling images for linux/${{ matrix.arch }} ==="
+              /usr/local/bin/sealos pull --platform linux/${{ matrix.arch }} $(cat k8s-images.txt)
+
+              echo "=== Saving images ==="
+              /usr/local/bin/sealos save -o release/images/k8s-images.tar $(cat k8s-images.txt)
             '
 
-      # ====================== 3. 下载系统依赖包 ======================
-      - name: Download system dependencies
+      # ====================== 4. 构建系统依赖包 ======================
+      - name: Build RPM packages
+        if: matrix.pkg == 'rpm'
         run: |
-          if [ "${{ matrix.pkg }}" = "apt" ]; then
-            docker run --rm -u $(id -u):$(id -g) -v $(pwd):/out ubuntu:24.04 bash -c '
-              apt-get update -qq && apt-get install -y dpkg-dev
-              mkdir -p /out/release/packages/deb
-              cd /out/release/packages/deb
-              apt-get --download-only install -y conntrack socat ipset iptables nfs-common open-iscsi iproute2
-              dpkg-scanpackages . /dev/null | gzip > Packages.gz
-            '
-          else
-            docker run --rm -u $(id -u):$(id -g) -v $(pwd):/out rockylinux:9 bash -c '
-              dnf install -y yum-utils createrepo
-              mkdir -p /out/release/packages/rpm
-              cd /out/release/packages/rpm
-              yumdownloader --resolve --destdir=. conntrack-tools socat ipset iptables nfs-utils iscsi-initiator-utils
-              createrepo .
-            '
-          fi
+          docker run --rm -v $(pwd):/out rockylinux:9 bash -c '
+            dnf install -y yum-utils createrepo
+            mkdir -p /out/release/packages/rpm
+            cd /out/release/packages/rpm
+            yumdownloader --resolve --destdir=. \
+              conntrack-tools socat ipset iptables \
+              nfs-utils iscsi-initiator-utils iproute \
+              nmap-ncat tar coreutils util-linux procps-ng openssh-clients
+            createrepo .
+          '
 
-      # ====================== 4. 最终打包 ======================
-      - name: Create final offline package
+      - name: Build DEB packages
+        if: matrix.pkg == 'deb'
+        run: |
+          docker run --rm -v $(pwd):/out ubuntu:24.04 bash -c '
+            apt-get update -qq
+            apt-get install -y dpkg-dev
+            mkdir -p /out/release/packages/deb
+            cd /out/release/packages/deb
+            apt-get --download-only install -y \
+              conntrack socat ipset iptables \
+              nfs-common open-iscsi iproute2 netcat-openbsd \
+              tar coreutils util-linux procps openssh-client
+            dpkg-scanpackages . /dev/null | gzip -9c > Packages.gz
+          '
+
+      # ====================== 5. 最终打包 ======================
+      - name: Package offline bundle
         run: |
           mkdir -p release/scripts
-          cp install.sh k8s.env release/scripts/ 2>/dev/null || true
-          echo "v1.30.14" > release/version.txt
-          echo "5.1.1" > release/bin/sealos-version.txt
+          cp install.sh release/scripts/ 2>/dev/null || true
+          echo "${K8S_VERSION}" > release/version.txt
+          echo "${SEALOS_VERSION}" > release/bin/sealos-version.txt
 
           tar -czf k8s-offline-${{ matrix.arch }}-${{ matrix.pkg }}.tar.gz -C release .
           ls -lh *.tar.gz
 
-      # ====================== 5. 发布 ======================
+      # ====================== 6. 发布 ======================
       - name: Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
