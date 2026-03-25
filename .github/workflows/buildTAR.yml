@@ -45,9 +45,6 @@ jobs:
             container: "rockylinux:9"
             pkg: "dnf"
 
-    env:
-      K8S_VERSION: v1.30.14
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -66,7 +63,7 @@ jobs:
       - name: Pull and save k8s images
         run: |
           cat > images.txt <<EOF
-          registry.cn-shanghai.aliyuncs.com/labring/kubernetes:${K8S_VERSION}
+          registry.cn-shanghai.aliyuncs.com/labring/kubernetes:v1.30.14
           registry.cn-shanghai.aliyuncs.com/labring/calico:v3.27.4
           registry.cn-shanghai.aliyuncs.com/labring/ingress-nginx:v1.11.3
           registry.cn-shanghai.aliyuncs.com/labring/longhorn:v1.6.4
@@ -110,7 +107,7 @@ jobs:
         run: |
           mkdir -p release/scripts
           cp install.sh k8s.env release/scripts/ 2>/dev/null || true
-          echo "${K8S_VERSION}" > release/version.txt
+          echo "v1.30.14" > release/version.txt
           echo "5.1.1" > release/bin/sealos-version.txt
           tar -czf k8s-offline-${{ matrix.arch }}-${{ matrix.pkg }}.tar.gz -C release .
           ls -lh *.tar.gz
