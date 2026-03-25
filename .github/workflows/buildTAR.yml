@@ -115,6 +115,8 @@ jobs:
             docker run --platform ${{ env.PLATFORM }} --rm -v $(pwd):/out rockylinux:9 bash -c '
               set -e
               dnf install -y dnf-plugins-core
+              dnf config-manager --set-enabled appstream   # 关键修复：启用 AppStream 仓库
+
               mkdir -p /out/release/packages/rpm
 
               dnf download --downloadonly --downloaddir=/out/release/packages/rpm \
