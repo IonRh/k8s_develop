@@ -80,7 +80,7 @@ jobs:
           chmod +x sealos
           sudo mv -f sealos /usr/bin/sealos
           cp /usr/bin/sealos release/bin/sealos
-          echo "Sealos ${SEALOS_VERSION} (${ { matrix.arch } }) prepared in release/bin"
+          echo "Sealos ${SEALOS_VERSION} (${{ matrix.arch }}) prepared in release/bin"
 
       # 2. 拉取镜像并打包（已解决权限问题）
       - name: Pull and save k8s images
