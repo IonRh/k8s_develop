@@ -33,6 +33,8 @@ jobs:
       # 动态映射
       PLATFORM: ${{ matrix.runner_arch == 'ubuntu-24.04' && 'linux/amd64' || 'linux/arm64' }}
       ARCH_NAME: ${{ matrix.runner_arch == 'ubuntu-24.04' && 'amd64' || 'arm64' }}
+      # 映射到 RPM 仓库使用的架构名（x86_64 / aarch64）
+      PKG_ARCH: ${{ matrix.runner_arch == 'ubuntu-24.04' && 'x86_64' || 'aarch64' }}
       PKG_TYPE: ${{ matrix.os_type }}
 
     steps:
@@ -115,7 +117,10 @@ jobs:
             docker run --platform ${{ env.PLATFORM }} --rm -v $(pwd):/out rockylinux:9 bash -c '
               set -e
               dnf install -y dnf-plugins-core
-              dnf config-manager --set-enabled appstream   # 关键修复：启用 AppStream 仓库
+              # 启用 AppStream 并尝试启用 EPEL，刷新缓存，确保常见包可用
+              dnf config-manager --set-enabled appstream
+              dnf install -y epel-release || true
+              dnf makecache --refresh || true
 
               mkdir -p /out/release/packages/rpm
 
