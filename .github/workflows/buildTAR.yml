@@ -78,8 +78,8 @@ jobs:
             wget -qO- "$URL" | tar -xzf - sealos || (echo "wget download failed" && exit 1)
           fi
           chmod +x sealos
-          sudo mv -f sealos /usr/bin/sealos
-          cp /usr/bin/sealos release/bin/sealos
+          mkdir -p release/bin
+          cp -f sealos release/bin/sealos
           echo "Sealos ${SEALOS_VERSION} (${{ matrix.arch }}) prepared in release/bin"
 
       # 2. 拉取镜像并打包（已解决权限问题）
@@ -100,8 +100,8 @@ jobs:
             ubuntu:22.04 bash -c '
               apt-get update -qq && apt-get install -y ca-certificates
               cd /work
-              ./sealos pull --platform linux/${{ matrix.arch }} $(cat images.txt)
-              ./sealos save -o release/images/k8s-images.tar $(cat images.txt)
+              ./release/bin/sealos pull --platform linux/${{ matrix.arch }} $(cat images.txt)
+              ./release/bin/sealos save -o release/images/k8s-images.tar $(cat images.txt)
             '
 
       # 3. 下载系统依赖包（同样处理权限）
