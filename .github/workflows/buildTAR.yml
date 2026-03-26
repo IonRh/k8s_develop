@@ -61,12 +61,7 @@ jobs:
       # ====================== 2. 准备镜像列表 ======================
       - name: Prepare k8s images list
         run: |
-          cat <<EOF > k8s-images.txt
-          registry.cn-shanghai.aliyuncs.com/labring/kubernetes:${K8S_VERSION}
-          registry.cn-shanghai.aliyuncs.com/labring/calico:${CALICO_VERSION}
-          registry.cn-shanghai.aliyuncs.com/labring/ingress-nginx:${INGRESS_VERSION}
-          registry.cn-shanghai.aliyuncs.com/labring/longhorn:${LONGHORN_VERSION}
-          EOF
+          echo "registry.cn-shanghai.aliyuncs.com/labring/kubernetes:${K8S_VERSION} registry.cn-shanghai.aliyuncs.com/labring/calico:${CALICO_VERSION} registry.cn-shanghai.aliyuncs.com/labring/ingress-nginx:${INGRESS_VERSION} registry.cn-shanghai.aliyuncs.com/labring/longhorn:${LONGHORN_VERSION}" > k8s-images.txt
 
       # ====================== 3. 拉取并打包镜像（多架构） ======================
       - name: Build k8s image tar
@@ -90,7 +85,7 @@ jobs:
               /usr/local/bin/sealos pull --platform ${{ env.PLATFORM }} $(cat k8s-images.txt)
 
               echo "=== Saving images ==="
-              /usr/local/bin/sealos save -o release/images/k8s-images.tar $(cat k8s-images.txt)
+              /usr/local/bin/sealos save -o release/images/k8s-offline.tar $(cat k8s-images.txt)
             '
 
       # ====================== 4. 下载系统依赖包（DEB / RPM 分开） ======================
