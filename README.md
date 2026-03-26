@@ -30,7 +30,7 @@ PASSWORD=your_password
 PORT=22
 SSH_USER=root
 
-# 可选：Rancher
+# 可选：Rancher（待完成，目前没时间弄）
 SKIP_RANCHER=1
 # RANCHER_HOSTNAME=rancher.local
 # RANCHER_NAMESPACE=cattle-system
