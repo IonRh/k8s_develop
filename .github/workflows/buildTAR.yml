@@ -85,7 +85,7 @@ jobs:
               /usr/local/bin/sealos pull --platform ${{ env.PLATFORM }} $(cat k8s-images.txt)
 
               echo "=== Saving images ==="
-              /usr/local/bin/sealos save -o release/images/k8s-offline.tar $(cat k8s-images.txt)
+              /usr/local/bin/sealos save -m --format=docker-archive -o release/images/k8s-offline.tar $(cat k8s-images.txt)
             '
 
       # ====================== 4. 下载系统依赖包（DEB / RPM 分开） ======================
